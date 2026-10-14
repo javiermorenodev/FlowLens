@@ -1,4 +1,4 @@
-import type { CallInfo, FlowEdge, FlowGraph, FlowNode, RouteInfo } from '../shared/types';
+import type { CallInfo, EntityInfo, FlowEdge, FlowGraph, FlowNode, RouteInfo } from '../shared/types';
 
 export function normalizePath(raw: string): string {
   let value = raw.trim().split('?')[0].split('#')[0];
@@ -62,11 +62,60 @@ export function pathsMatch(callPath: string, routePath: string): boolean {
   return matchScore(callPath, routePath) > 0;
 }
 
-export function buildGraph(routes: RouteInfo[], calls: CallInfo[], scannedFiles: number): FlowGraph {
+function singularize(word: string): string {
+  if (word.endsWith('ies')) {
+    return `${word.slice(0, -3)}y`;
+  }
+  if (/(?:ses|xes|zes|ches|shes)$/.test(word)) {
+    return word.slice(0, -2);
+  }
+  if (word.endsWith('s') && !word.endsWith('ss')) {
+    return word.slice(0, -1);
+  }
+  return word;
+}
+
+export function entityMatchesRoute(entityName: string, routePath: string): boolean {
+  const target = entityName.toLowerCase();
+  const targetSingular = singularize(target);
+  for (const segment of segments(routePath)) {
+    if (segment.startsWith(':') || segment.startsWith('*')) {
+      continue;
+    }
+    const lower = segment.toLowerCase();
+    if (lower === target || lower === targetSingular || singularize(lower) === targetSingular) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function buildGraph(
+  routes: RouteInfo[],
+  calls: CallInfo[],
+  scannedFiles: number,
+  entities: EntityInfo[] = [],
+): FlowGraph {
   const nodes = new Map<string, FlowNode>();
   const edges: FlowEdge[] = [];
   const edgeIds = new Set<string>();
   const uniqueRoutes: RouteInfo[] = [];
+
+  for (const entity of entities) {
+    const id = `db:${entity.name}`;
+    if (nodes.has(id)) {
+      continue;
+    }
+    nodes.set(id, {
+      id,
+      label: entity.name,
+      kind: 'database',
+      filePath: entity.filePath,
+      line: entity.line,
+      framework: entity.framework,
+      detail: entity.framework,
+    });
+  }
 
   for (const route of routes) {
     const method = route.method.toUpperCase();
@@ -85,6 +134,18 @@ export function buildGraph(routes: RouteInfo[], calls: CallInfo[], scannedFiles:
       framework: route.framework,
       detail: route.framework,
     });
+    for (const entity of entities) {
+      if (!entityMatchesRoute(entity.name, path)) {
+        continue;
+      }
+      const dbId = `db:${entity.name}`;
+      const edgeId = `${id}->${dbId}`;
+      if (edgeIds.has(edgeId)) {
+        continue;
+      }
+      edgeIds.add(edgeId);
+      edges.push({ id: edgeId, source: id, target: dbId, label: entity.framework });
+    }
   }
 
   for (const call of calls) {

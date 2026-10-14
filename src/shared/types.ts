@@ -40,6 +40,13 @@ export interface CallInfo {
   framework: string;
 }
 
+export interface EntityInfo {
+  name: string;
+  filePath: string;
+  line: number;
+  framework: string;
+}
+
 export interface BackendParser {
   name: string;
   detect(filePath: string, content: string): boolean;
@@ -50,4 +57,10 @@ export interface FrontendParser {
   name: string;
   detect(filePath: string, content: string): boolean;
   parse(filePath: string, content: string): CallInfo[];
+}
+
+export interface SchemaParser {
+  name: string;
+  detect(filePath: string, content: string): boolean;
+  parse(filePath: string, content: string): EntityInfo[];
 }

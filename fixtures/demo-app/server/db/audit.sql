@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id SERIAL PRIMARY KEY,
+  actor VARCHAR(255) NOT NULL,
+  action VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE metrics (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100),
+  value INTEGER
+);

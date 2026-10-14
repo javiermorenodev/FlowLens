@@ -5,17 +5,23 @@ import { expressParser } from '../parsers/expressParser';
 import { nestParser } from '../parsers/nestParser';
 import { jsHttpParser } from '../parsers/jsHttpParser';
 import { angularParser } from '../parsers/angularParser';
-import type { BackendParser, CallInfo, FlowGraph, FrontendParser, RouteInfo } from '../shared/types';
+import { prismaParser } from '../parsers/prismaParser';
+import { sequelizeParser } from '../parsers/sequelizeParser';
+import { mongooseParser } from '../parsers/mongooseParser';
+import { sqlParser } from '../parsers/sqlParser';
+import type { BackendParser, CallInfo, EntityInfo, FlowGraph, FrontendParser, RouteInfo, SchemaParser } from '../shared/types';
 
 const BACKEND_PARSERS: BackendParser[] = [expressParser, nestParser];
 const FRONTEND_PARSERS: FrontendParser[] = [jsHttpParser, angularParser];
+const SCHEMA_PARSERS: SchemaParser[] = [prismaParser, sequelizeParser, mongooseParser, sqlParser];
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', '.git', '.next', 'coverage', '.cache', 'vendor', '.turbo', '.output']);
-const CODE_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.jsx', '.ts', '.tsx', '.vue']);
+const CODE_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.jsx', '.ts', '.tsx', '.vue', '.prisma', '.sql']);
 
 interface CacheEntry {
   routes: RouteInfo[];
   calls: CallInfo[];
+  entities: EntityInfo[];
 }
 
 export class FlowScanner {
@@ -52,11 +58,13 @@ export class FlowScanner {
   private graph(): FlowGraph {
     const routes: RouteInfo[] = [];
     const calls: CallInfo[] = [];
+    const entities: EntityInfo[] = [];
     for (const entry of this.cache.values()) {
       routes.push(...entry.routes);
       calls.push(...entry.calls);
+      entities.push(...entry.entities);
     }
-    return buildGraph(routes, calls, this.cache.size);
+    return buildGraph(routes, calls, this.cache.size, entities);
   }
 
   private readFile(filePath: string): CacheEntry {
@@ -64,13 +72,14 @@ export class FlowScanner {
       const content = fs.readFileSync(filePath, 'utf8');
       return this.parseFile(filePath, content);
     } catch {
-      return { routes: [], calls: [] };
+      return { routes: [], calls: [], entities: [] };
     }
   }
 
   private parseFile(filePath: string, content: string): CacheEntry {
     const routes: RouteInfo[] = [];
     const calls: CallInfo[] = [];
+    const entities: EntityInfo[] = [];
     for (const parser of BACKEND_PARSERS) {
       if (parser.detect(filePath, content)) {
         routes.push(...parser.parse(filePath, content));
@@ -81,7 +90,12 @@ export class FlowScanner {
         calls.push(...parser.parse(filePath, content));
       }
     }
-    return { routes, calls };
+    for (const parser of SCHEMA_PARSERS) {
+      if (parser.detect(filePath, content)) {
+        entities.push(...parser.parse(filePath, content));
+      }
+    }
+    return { routes, calls, entities };
   }
 
   private collectFiles(root: string): string[] {

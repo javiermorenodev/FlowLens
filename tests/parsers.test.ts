@@ -4,9 +4,17 @@ import { expressParser } from '../src/parsers/expressParser';
 import { nestParser } from '../src/parsers/nestParser';
 import { jsHttpParser } from '../src/parsers/jsHttpParser';
 import { angularParser } from '../src/parsers/angularParser';
+import { prismaParser } from '../src/parsers/prismaParser';
+import { sequelizeParser } from '../src/parsers/sequelizeParser';
+import { mongooseParser } from '../src/parsers/mongooseParser';
+import { sqlParser } from '../src/parsers/sqlParser';
 
 function specs(entries: Array<{ method: string; path: string }>): string[] {
   return entries.map((entry) => `${entry.method} ${entry.path}`).sort();
+}
+
+function entityNames(entries: Array<{ name: string }>): string[] {
+  return entries.map((entry) => entry.name).sort();
 }
 
 describe('expressParser', () => {
@@ -111,5 +119,52 @@ describe('angularParser', () => {
     expect(specs(angularParser.parse(file.filePath, file.content))).toEqual(
       ['GET /api/users', 'POST /api/users', 'GET /api/orders'].sort(),
     );
+  });
+});
+
+describe('prismaParser', () => {
+  const file = readFixture('server/prisma/schema.prisma');
+
+  it('detecta el esquema y extrae los modelos', () => {
+    expect(prismaParser.detect(file.filePath, file.content)).toBe(true);
+    expect(entityNames(prismaParser.parse(file.filePath, file.content))).toEqual(
+      ['Order', 'Product', 'Task', 'User'].sort(),
+    );
+  });
+
+  it('no marca datasource ni generator como modelos', () => {
+    expect(entityNames(prismaParser.parse(file.filePath, file.content))).not.toContain('db');
+    expect(entityNames(prismaParser.parse(file.filePath, file.content))).not.toContain('client');
+  });
+});
+
+describe('sequelizeParser', () => {
+  const file = readFixture('server/models/session.model.js');
+
+  it('detecta sequelize.define con el nombre del modelo', () => {
+    expect(sequelizeParser.detect(file.filePath, file.content)).toBe(true);
+    expect(entityNames(sequelizeParser.parse(file.filePath, file.content))).toEqual(['Session']);
+  });
+
+  it('no se activa en archivos sin sequelize', () => {
+    expect(sequelizeParser.detect('plain.js', "const x = obj.define('Nope', {});")).toBe(false);
+  });
+});
+
+describe('mongooseParser', () => {
+  const file = readFixture('server/models/log.model.js');
+
+  it('detecta mongoose.model', () => {
+    expect(mongooseParser.detect(file.filePath, file.content)).toBe(true);
+    expect(entityNames(mongooseParser.parse(file.filePath, file.content))).toEqual(['Log']);
+  });
+});
+
+describe('sqlParser', () => {
+  const file = readFixture('server/db/audit.sql');
+
+  it('detecta CREATE TABLE y normaliza el nombre', () => {
+    expect(sqlParser.detect(file.filePath, file.content)).toBe(true);
+    expect(entityNames(sqlParser.parse(file.filePath, file.content))).toEqual(['audit_logs', 'metrics']);
   });
 });

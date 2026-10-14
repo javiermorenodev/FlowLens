@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildGraph, normalizePath, pathsMatch } from '../src/core/aggregator';
+import { buildGraph, entityMatchesRoute, normalizePath, pathsMatch } from '../src/core/aggregator';
 import { FlowScanner } from '../src/core/scanner';
 import { fixturePath } from './helpers';
-import type { CallInfo, RouteInfo } from '../src/shared/types';
+import type { CallInfo, EntityInfo, RouteInfo } from '../src/shared/types';
 
 describe('normalizePath', () => {
   it('normaliza barras y descarta query/fragmento', () => {
@@ -53,13 +53,49 @@ describe('buildGraph', () => {
   });
 });
 
+describe('entityMatchesRoute', () => {
+  it('empareja modelos con rutas por singular/plural', () => {
+    expect(entityMatchesRoute('User', '/api/users')).toBe(true);
+    expect(entityMatchesRoute('User', '/api/users/:id')).toBe(true);
+    expect(entityMatchesRoute('Order', '/api/orders')).toBe(true);
+    expect(entityMatchesRoute('Product', '/api/products/:id')).toBe(true);
+  });
+
+  it('no empareja entidades ajenas a la ruta', () => {
+    expect(entityMatchesRoute('Log', '/api/users')).toBe(false);
+    expect(entityMatchesRoute('audit_logs', '/api/orders')).toBe(false);
+  });
+});
+
+describe('buildGraph (capa de datos)', () => {
+  const routes: RouteInfo[] = [
+    { method: 'GET', path: '/api/users', filePath: 'server.js', line: 1, framework: 'express' },
+  ];
+  const entities: EntityInfo[] = [
+    { name: 'User', filePath: 'schema.prisma', line: 1, framework: 'prisma' },
+    { name: 'Log', filePath: 'log.model.js', line: 1, framework: 'mongoose' },
+  ];
+
+  it('crea nodos de base de datos y aristas api -> tabla', () => {
+    const graph = buildGraph(routes, [], 2, entities);
+    expect(graph.nodes.filter((node) => node.kind === 'database')).toHaveLength(2);
+    const dbEdge = graph.edges.find((edge) => edge.target === 'db:User');
+    expect(dbEdge).toBeDefined();
+    expect(dbEdge?.source).toBe('api:GET /api/users');
+    expect(graph.edges.some((edge) => edge.target === 'db:Log')).toBe(false);
+  });
+});
+
 describe('FlowScanner (integration sobre el fixture)', () => {
   it('escanea el proyecto demo y construye el grafo', () => {
     const graph = new FlowScanner().scan(fixturePath('.'));
-    expect(graph.scannedFiles).toBe(6);
+    expect(graph.scannedFiles).toBe(10);
     expect(graph.nodes.filter((node) => node.kind === 'api')).toHaveLength(10);
-    expect(graph.edges.length).toBeGreaterThanOrEqual(14);
+    expect(graph.nodes.filter((node) => node.kind === 'database')).toHaveLength(8);
+    expect(graph.edges.length).toBeGreaterThanOrEqual(26);
     expect(graph.edges.some((edge) => edge.target === 'api:GET /api/products/:id')).toBe(true);
     expect(graph.edges.some((edge) => edge.target === 'api:GET /api/users/:id')).toBe(true);
+    expect(graph.edges.some((edge) => edge.target === 'db:User')).toBe(true);
+    expect(graph.edges.some((edge) => edge.target === 'db:Task')).toBe(true);
   });
 });
