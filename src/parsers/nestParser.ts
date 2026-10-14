@@ -5,11 +5,10 @@ import type { BackendParser, RouteInfo } from '../shared/types';
 const METHOD_DECORATORS = new Set(['Get', 'Post', 'Put', 'Delete', 'Patch', 'Options', 'Head', 'All']);
 
 function joinPath(base: string, sub: string): string {
-  const left = base.replace(/\/+$/, '');
-  const right = sub.replace(/^\/+/, '');
-  const joined = `${left}/${right}`;
-  const collapsed = joined.replace(/\/+/g, '/');
-  return collapsed === '' ? '/' : collapsed;
+  const segments = [base, sub]
+    .map((part) => part.replace(/^\/+/, '').replace(/\/+$/, ''))
+    .filter((part) => part.length > 0);
+  return `/${segments.join('/')}`;
 }
 
 export const nestParser: BackendParser = {

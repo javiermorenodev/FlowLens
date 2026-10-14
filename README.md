@@ -49,6 +49,7 @@ Para depurar la extensión: abre el proyecto en VS Code y pulsa `F5` (*Run Exten
 | `npm run build` | Compila extensión + webview con esbuild. |
 | `npm run watch` | Build en modo observación. |
 | `npm run check` | Type-check sin emitir. |
+| `npm test` | Ejecuta los tests unitarios (Vitest). |
 | `npm run scan <ruta>` | Escanea un proyecto y vuelca el grafo como JSON (útil para depurar parsers). |
 
 ### Estructura

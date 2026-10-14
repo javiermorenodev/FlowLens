@@ -13,3 +13,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - File System Watcher con debounce para actualización en vivo.
 - CLI de escaneo (`npm run scan`) para depurar el grafo.
 - Fixture multi-framework en `fixtures/demo-app`.
+- **Tests unitarios** con Vitest (parsers + aggregator) integrados en CI.
+
+### Fixed
+- El parser NestJS ahora emite rutas canónicas (`/api/tasks` en vez de `api/tasks/`).
