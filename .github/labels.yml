@@ -1,0 +1,84 @@
+- name: "type: feature"
+  color: "0e8a16"
+  description: Nueva funcionalidad
+- name: "type: bug"
+  color: "d73a4a"
+  description: Algo no funciona
+- name: "type: chore"
+  color: "c2e0c6"
+  description: Mantenimiento, infraestructura
+- name: "type: docs"
+  color: "0075ca"
+  description: Documentación
+- name: "type: refactor"
+  color: "fbca04"
+  description: Reestructuración sin cambio de comportamiento
+- name: "type: test"
+  color: "5319e7"
+  description: Pruebas automatizadas
+- name: "type: perf"
+  color: "b60205"
+  description: Rendimiento
+- name: "area: core"
+  color: "1d76db"
+  description: Scanner, aggregator, watcher
+- name: "area: parser"
+  color: "0052cc"
+  description: Parsers de frameworks
+- name: "area: webview"
+  color: "5319e7"
+  description: UI del grafo (React Flow)
+- name: "area: extension-core"
+  color: "1d76db"
+  description: Integración con la API del editor
+- name: "area: ci"
+  color: "bfd4f2"
+  description: Integración continua
+- name: "area: dx"
+  color: "bfd4f2"
+  description: Experiencia de desarrollo y empaquetado
+- name: "framework: express"
+  color: "ededed"
+  description: Express
+- name: "framework: nestjs"
+  color: "ededed"
+  description: NestJS
+- name: "framework: react"
+  color: "ededed"
+  description: React / React Query
+- name: "framework: vue"
+  color: "ededed"
+  description: Vue
+- name: "framework: angular"
+  color: "ededed"
+  description: Angular
+- name: "framework: data"
+  color: "ededed"
+  description: Capa de datos (ORM/SQL)
+- name: "priority: P0"
+  color: "b60205"
+  description: Crítico, bloquea
+- name: "priority: P1"
+  color: "d93f0b"
+  description: Alto
+- name: "priority: P2"
+  color: "fbca04"
+  description: Medio
+- name: "priority: P3"
+  color: "c2e0c6"
+  description: Bajo
+- name: "size: S"
+  color: "d4c5f9"
+  description: Menos de medio día
+- name: "size: M"
+  color: "c5def5"
+  description: Un día
+- name: "size: L"
+  color: "bfd4f2"
+  description: Varios días
+- name: "good first issue"
+  color: "7057ff"
+  description: Ideal para empezar a contribuir
+- name: "help wanted"
+  color: "008672"
+  description: Se agradece ayuda externa

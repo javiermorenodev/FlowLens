@@ -1,0 +1,71 @@
+name: 🐛 Bug report
+description: Reporta un comportamiento incorrecto de FlowLens
+title: "[Bug]: "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de reportar un bug. Cuanta más información, mejor.
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción
+      description: ¿Qué está pasando y qué esperabas que pasara?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      placeholder: |
+        1. Abrir un proyecto con ...
+        2. Ejecutar el comando ...
+        3. Ver el error ...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Superficie
+      options:
+        - VS Code
+        - Antigravity
+        - CLI
+        - Otro
+    validations:
+      required: true
+  - type: input
+    id: editor-version
+    attributes:
+      label: Versión del editor
+      placeholder: "1.85.0"
+    validations:
+      required: true
+  - type: input
+    id: flowlens-version
+    attributes:
+      label: Versión de FlowLens
+      placeholder: "0.0.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Framework implicado
+      multiple: true
+      options:
+        - Express
+        - NestJS
+        - React
+        - Vue
+        - Angular
+        - Otro
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs o capturas
+      description: Pega logs de la consola de desarrollo o adjunta capturas.
+      render: shell
+    validations:
+      required: false

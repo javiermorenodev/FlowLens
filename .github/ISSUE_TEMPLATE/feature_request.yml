@@ -1,0 +1,34 @@
+name: ✨ Feature request
+description: Propón una nueva funcionalidad o mejora
+title: "[Feature]: "
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: ¿Qué problema resuelve?
+      description: Describe la necesidad o fricción actual.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solución propuesta
+      description: Cómo imaginas la funcionalidad.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Ámbito
+      options:
+        - label: Parser (nuevo framework o mejora de detección)
+        - label: Webview / UI del grafo
+        - label: Core / rendimiento
+        - label: Documentación / DX
