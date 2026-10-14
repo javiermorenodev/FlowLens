@@ -1,16 +1,38 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 
-const repoArg = process.argv[2];
+const repoArg = process.argv.find((arg) => !arg.startsWith('--') && arg !== process.argv[0] && arg !== process.argv[1]);
+const reset = process.argv.includes('--reset');
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function runGh(args, input, attempts) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const stdio = input === undefined ? ['ignore', 'pipe', 'inherit'] : ['pipe', 'pipe', 'inherit'];
+      return execFileSync('gh', args, { input, encoding: 'utf8', stdio }).trim();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        const wait = 1500 * attempt;
+        console.log(`  ! error transitorio, reintento ${attempt}/${attempts - 1} en ${wait}ms`);
+        sleepSync(wait);
+      }
+    }
+  }
+  console.error(`\n✗ Falló: gh ${args.join(' ')}`);
+  throw lastError;
+}
 
 function gh(args, input) {
-  const stdio = input === undefined ? ['ignore', 'pipe', 'inherit'] : ['pipe', 'pipe', 'inherit'];
-  try {
-    return execFileSync('gh', args, { input, encoding: 'utf8', stdio }).trim();
-  } catch (error) {
-    console.error(`\n✗ Falló: gh ${args.join(' ')}`);
-    throw error;
-  }
+  return runGh(args, input, 1);
+}
+
+function ghRetry(args, input) {
+  return runGh(args, input, 6);
 }
 
 const LABELS = [
@@ -27,6 +49,8 @@ const LABELS = [
   ['area: extension-core', '1d76db', 'Integración con la API del editor'],
   ['area: ci', 'bfd4f2', 'Integración continua'],
   ['area: dx', 'bfd4f2', 'Experiencia de desarrollo y empaquetado'],
+  ['area: docs', '0075ca', 'Documentación y guías'],
+  ['area: test', '5319e7', 'Pruebas y cobertura'],
   ['framework: express', 'ededed', 'Express'],
   ['framework: nestjs', 'ededed', 'NestJS'],
   ['framework: react', 'ededed', 'React / React Query'],
@@ -299,9 +323,18 @@ function main() {
   const repoFlag = ['-R', repo];
   console.log(`\n→ Repositorio: ${repo}\n`);
 
-  console.log('Labels:');
+  if (reset) {
+    console.log('Reset: borrando issues existentes...');
+    const numbers = JSON.parse(gh(['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number', ...repoFlag]) || '[]');
+    for (const { number } of numbers) {
+      ghRetry(['issue', 'delete', String(number), '--yes', ...repoFlag]);
+      console.log(`  ✗ #${number} borrado`);
+    }
+  }
+
+  console.log('\nLabels:');
   for (const [name, color, description] of LABELS) {
-    gh(['label', 'create', name, '--color', color, '--description', description, '--force', ...repoFlag]);
+    ghRetry(['label', 'create', name, '--color', color, '--description', description, '--force', ...repoFlag]);
     console.log(`  ✓ ${name}`);
   }
 
@@ -312,7 +345,7 @@ function main() {
       console.log(`  · ${title} (ya existe)`);
       continue;
     }
-    gh(['api', `repos/${repo}/milestones`, '-f', `title=${title}`, '-f', `description=${description}`]);
+    ghRetry(['api', `repos/${repo}/milestones`, '-f', `title=${title}`, '-f', `description=${description}`]);
     console.log(`  ✓ ${title}`);
   }
 
@@ -332,9 +365,9 @@ function main() {
     for (const label of issue.labels) {
       args.push('--label', label);
     }
-    const url = gh(args, issue.body);
+    const url = ghRetry(args, issue.body);
     if (issue.done) {
-      gh(['issue', 'close', url, '--comment', DONE_NOTE, ...repoFlag]);
+      ghRetry(['issue', 'close', url, '--comment', DONE_NOTE, ...repoFlag]);
     }
     created += 1;
     console.log(`  ✓ ${issue.title}${issue.done ? ' (cerrado)' : ''}`);

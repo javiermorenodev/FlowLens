@@ -37,6 +37,12 @@
 - name: "area: dx"
   color: "bfd4f2"
   description: Experiencia de desarrollo y empaquetado
+- name: "area: docs"
+  color: "0075ca"
+  description: Documentación y guías
+- name: "area: test"
+  color: "5319e7"
+  description: Pruebas y cobertura
 - name: "framework: express"
   color: "ededed"
   description: Express
