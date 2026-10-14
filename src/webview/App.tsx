@@ -105,10 +105,28 @@ export function App() {
 
   const { nodes, edges } = useMemo(() => toFlow(graph), [graph]);
 
+  const nodesById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
+
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const data = node.data as FlowNodeData;
     vscode.postMessage({ type: 'openFile', filePath: data.filePath, line: data.line });
   }, []);
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: Edge) => {
+      const source = nodesById.get(edge.source);
+      const target = nodesById.get(edge.target);
+      if (!source || !target) {
+        return;
+      }
+      vscode.postMessage({
+        type: 'openPair',
+        primary: { filePath: source.filePath, line: source.line },
+        secondary: { filePath: target.filePath, line: target.line },
+      });
+    },
+    [nodesById],
+  );
 
   return (
     <div className="flow-root">
@@ -133,6 +151,7 @@ export function App() {
           edges={edges}
           nodeTypes={nodeTypes}
           onNodeDoubleClick={onNodeDoubleClick}
+          onEdgeClick={onEdgeClick}
           fitView
           minZoom={0.15}
           proOptions={{ hideAttribution: true }}

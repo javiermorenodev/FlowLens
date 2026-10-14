@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { FlowScanner } from './core/scanner';
-import type { CoreToWebview, WebviewToCore } from './shared/messages';
+import type { CoreToWebview, OpenTarget, WebviewToCore } from './shared/messages';
 
 export function activate(context: vscode.ExtensionContext): void {
   const scanner = new FlowScanner();
@@ -41,16 +41,22 @@ export function activate(context: vscode.ExtensionContext): void {
     }, 400);
   };
 
-  const openFile = async (filePath: string, line: number): Promise<void> => {
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+  const revealLocation = async (target: OpenTarget, viewColumn: vscode.ViewColumn): Promise<void> => {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.filePath));
     const editor = await vscode.window.showTextDocument(document, {
-      viewColumn: vscode.ViewColumn.One,
+      viewColumn,
       preview: false,
       preserveFocus: true,
     });
-    const position = new vscode.Position(Math.max(0, line - 1), 0);
+    const position = new vscode.Position(Math.max(0, target.line - 1), 0);
     editor.selection = new vscode.Selection(position, position);
     editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+  };
+
+  const openPair = async (primary: OpenTarget, secondary: OpenTarget): Promise<void> => {
+    await revealLocation(primary, vscode.ViewColumn.One);
+    await revealLocation(secondary, vscode.ViewColumn.Two);
+    panel?.reveal(vscode.ViewColumn.Three, true);
   };
 
   context.subscriptions.push(
@@ -78,7 +84,10 @@ export function activate(context: vscode.ExtensionContext): void {
             publish();
             break;
           case 'openFile':
-            void openFile(message.filePath, message.line);
+            void revealLocation(message, vscode.ViewColumn.One);
+            break;
+          case 'openPair':
+            void openPair(message.primary, message.secondary);
             break;
         }
       });
