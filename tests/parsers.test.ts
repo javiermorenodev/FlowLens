@@ -80,6 +80,26 @@ describe('jsHttpParser (Vue)', () => {
   });
 });
 
+describe('jsHttpParser (axios instance + urls dinámicas)', () => {
+  const file = readFixture('client/react/apiClient.ts');
+
+  it('aplana el baseURL de axios.create en cada llamada', () => {
+    expect(specs(jsHttpParser.parse(file.filePath, file.content))).toEqual(
+      ['GET /api/users', 'GET /api/users/:param', 'POST /api/users', 'DELETE /api/users/:param'].sort(),
+    );
+  });
+
+  it('convierte template literals en segmentos :param', () => {
+    const source = 'fetch(`/api/users/${id}/orders/${orderId}`);\n';
+    expect(specs(jsHttpParser.parse('dynamic.ts', source))).toEqual(['GET /api/users/:param/orders/:param']);
+  });
+
+  it('no confunde métodos de otros objetos con instancias axios', () => {
+    const source = "const store = new Map();\nstore.get('/api/users');\n";
+    expect(jsHttpParser.parse('store.ts', source)).toEqual([]);
+  });
+});
+
 describe('angularParser', () => {
   const file = readFixture('client/angular/users.service.ts');
 

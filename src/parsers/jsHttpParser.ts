@@ -1,5 +1,5 @@
 import * as t from '@babel/types';
-import { extractVueScript, getStringValue, lineOf, parseCode, traverse } from './babelUtils';
+import { extractVueScript, getPathPattern, getStringValue, lineOf, parseCode, traverse } from './babelUtils';
 import type { CallInfo, FrontendParser } from '../shared/types';
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options']);
@@ -17,6 +17,52 @@ function readProperty(expression: t.ObjectExpression, name: string): t.Node | nu
     }
   }
   return null;
+}
+
+function isAxiosCreate(init: t.Node): init is t.CallExpression {
+  if (!t.isCallExpression(init)) {
+    return false;
+  }
+  const callee = init.callee;
+  return (
+    t.isMemberExpression(callee) &&
+    !callee.computed &&
+    t.isIdentifier(callee.object) &&
+    callee.object.name === 'axios' &&
+    t.isIdentifier(callee.property) &&
+    callee.property.name === 'create'
+  );
+}
+
+function joinUrl(base: string, url: string): string {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || url.startsWith('//')) {
+    return url;
+  }
+  const left = base.replace(/\/+$/, '');
+  const right = url.replace(/^\/+/, '');
+  const joined = `${left}/${right}`;
+  return joined.startsWith('/') ? joined : `/${joined}`;
+}
+
+function collectBaseUrls(ast: t.File): Map<string, string> {
+  const map = new Map<string, string>();
+  traverse(ast, {
+    VariableDeclarator(nodePath) {
+      const { id, init } = nodePath.node;
+      if (!t.isIdentifier(id) || !init || !isAxiosCreate(init)) {
+        return;
+      }
+      const options = init.arguments[0];
+      if (!options || !t.isObjectExpression(options)) {
+        return;
+      }
+      const base = getStringValue(readProperty(options, 'baseURL'));
+      if (base) {
+        map.set(id.name, base);
+      }
+    },
+  });
+  return map;
 }
 
 export const jsHttpParser: FrontendParser = {
@@ -48,6 +94,8 @@ export const jsHttpParser: FrontendParser = {
       return calls;
     }
 
+    const baseUrls = collectBaseUrls(ast);
+
     const push = (method: string, rawPath: string | null, node: t.Node, framework = 'js-http') => {
       if (!rawPath) {
         return;
@@ -74,7 +122,7 @@ export const jsHttpParser: FrontendParser = {
         const { callee, arguments: args } = callPath.node;
 
         if (t.isIdentifier(callee) && callee.name === 'fetch' && args[0]) {
-          push(readFetchMethod(args[1] ?? null), getStringValue(args[0]), callPath.node);
+          push(readFetchMethod(args[1] ?? null), getPathPattern(args[0]), callPath.node);
           return;
         }
 
@@ -87,26 +135,44 @@ export const jsHttpParser: FrontendParser = {
         ) {
           const method = callee.property.name;
           if (method === 'request' && args[0] && t.isObjectExpression(args[0])) {
-            push(getStringValue(readProperty(args[0], 'method')) ?? 'GET', getStringValue(readProperty(args[0], 'url')), callPath.node);
+            push(
+              getStringValue(readProperty(args[0], 'method')) ?? 'GET',
+              getPathPattern(readProperty(args[0], 'url')),
+              callPath.node,
+            );
             return;
           }
           if (HTTP_METHODS.has(method)) {
-            push(method, getStringValue(args[0]), callPath.node);
+            push(method, getPathPattern(args[0]), callPath.node);
           }
           return;
+        }
+
+        if (
+          t.isMemberExpression(callee) &&
+          !callee.computed &&
+          t.isIdentifier(callee.object) &&
+          t.isIdentifier(callee.property)
+        ) {
+          const base = baseUrls.get(callee.object.name);
+          if (base && HTTP_METHODS.has(callee.property.name)) {
+            const url = getPathPattern(args[0]);
+            push(callee.property.name, url ? joinUrl(base, url) : null, callPath.node);
+            return;
+          }
         }
 
         if (t.isIdentifier(callee) && callee.name === 'axios' && args[0]) {
           if (t.isObjectExpression(args[0])) {
             push(
               getStringValue(readProperty(args[0], 'method')) ?? 'GET',
-              getStringValue(readProperty(args[0], 'url')),
+              getPathPattern(readProperty(args[0], 'url')),
               callPath.node,
             );
             return;
           }
           const method = args[1] && t.isObjectExpression(args[1]) ? getStringValue(readProperty(args[1], 'method')) ?? 'GET' : 'GET';
-          push(method, getStringValue(args[0]), callPath.node);
+          push(method, getPathPattern(args[0]), callPath.node);
           return;
         }
 
@@ -116,17 +182,27 @@ export const jsHttpParser: FrontendParser = {
               const node = inner.node;
               const innerCallee = node.callee;
               if (t.isIdentifier(innerCallee) && innerCallee.name === 'fetch' && node.arguments[0]) {
-                push(readFetchMethod(node.arguments[1] ?? null), getStringValue(node.arguments[0]), node, 'react-query');
+                push(readFetchMethod(node.arguments[1] ?? null), getPathPattern(node.arguments[0]), node, 'react-query');
                 return;
               }
               if (
                 t.isMemberExpression(innerCallee) &&
                 t.isIdentifier(innerCallee.object) &&
-                innerCallee.object.name === 'axios' &&
                 t.isIdentifier(innerCallee.property) &&
                 HTTP_METHODS.has(innerCallee.property.name)
               ) {
-                push(innerCallee.property.name, getStringValue(node.arguments[0]), node, 'react-query');
+                const objectName = innerCallee.object.name;
+                const innerBase = objectName === 'axios' ? undefined : baseUrls.get(objectName);
+                if (objectName !== 'axios' && !innerBase) {
+                  return;
+                }
+                const url = getPathPattern(node.arguments[0]);
+                push(
+                  innerCallee.property.name,
+                  url ? (innerBase ? joinUrl(innerBase, url) : url) : null,
+                  node,
+                  'react-query',
+                );
               }
             },
           });

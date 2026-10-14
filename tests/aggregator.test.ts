@@ -56,9 +56,10 @@ describe('buildGraph', () => {
 describe('FlowScanner (integration sobre el fixture)', () => {
   it('escanea el proyecto demo y construye el grafo', () => {
     const graph = new FlowScanner().scan(fixturePath('.'));
-    expect(graph.scannedFiles).toBe(5);
+    expect(graph.scannedFiles).toBe(6);
     expect(graph.nodes.filter((node) => node.kind === 'api')).toHaveLength(10);
-    expect(graph.edges.length).toBeGreaterThanOrEqual(10);
+    expect(graph.edges.length).toBeGreaterThanOrEqual(14);
     expect(graph.edges.some((edge) => edge.target === 'api:GET /api/products/:id')).toBe(true);
+    expect(graph.edges.some((edge) => edge.target === 'api:GET /api/users/:id')).toBe(true);
   });
 });

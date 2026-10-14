@@ -33,6 +33,24 @@ export function getStringValue(node: t.Node | null | undefined): string | null {
   return null;
 }
 
+export function getPathPattern(node: t.Node | null | undefined): string | null {
+  if (!node) {
+    return null;
+  }
+  if (t.isStringLiteral(node) || t.isNumericLiteral(node)) {
+    return String(node.value);
+  }
+  if (t.isTemplateLiteral(node)) {
+    return node.quasis
+      .map((quasi, index) => {
+        const text = quasi.value.cooked ?? quasi.value.raw;
+        return index < node.expressions.length ? `${text}:param` : text;
+      })
+      .join('');
+  }
+  return null;
+}
+
 export function decoratorCallName(decorator: t.Decorator): string | null {
   const expression = decorator.expression;
   if (t.isCallExpression(expression) && t.isIdentifier(expression.callee)) {

@@ -1,5 +1,5 @@
 import * as t from '@babel/types';
-import { getStringValue, lineOf, parseCode, traverse } from './babelUtils';
+import { getPathPattern, lineOf, parseCode, traverse } from './babelUtils';
 import type { CallInfo, FrontendParser } from '../shared/types';
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'request']);
@@ -49,7 +49,7 @@ export const angularParser: FrontendParser = {
               continue;
             }
             if (property.key.name === 'url') {
-              url = getStringValue(property.value);
+              url = getPathPattern(property.value);
             }
             if (property.key.name === 'method' && t.isStringLiteral(property.value)) {
               requestMethod = property.value.value;
@@ -60,7 +60,7 @@ export const angularParser: FrontendParser = {
           }
           return;
         }
-        const url = getStringValue(args[0]);
+        const url = getPathPattern(args[0]);
         if (url) {
           calls.push({ method: method.toUpperCase(), path: url, filePath, line: lineOf(callPath.node), framework: 'angular' });
         }

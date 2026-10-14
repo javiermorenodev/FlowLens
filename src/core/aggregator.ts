@@ -36,23 +36,30 @@ function prefixMatch(routeSegments: string[], callSegments: string[]): boolean {
   return true;
 }
 
-function suffixMatch(routeSegments: string[], callSegments: string[]): boolean {
-  const length = Math.min(routeSegments.length, callSegments.length);
-  if (length === 0) {
-    return false;
+export function matchScore(callPath: string, routePath: string): number {
+  const call = segments(callPath);
+  const route = segments(routePath);
+  if (call.length === 0 || route.length === 0) {
+    return 0;
   }
-  for (let index = 1; index <= length; index += 1) {
-    if (!segmentMatches(routeSegments[routeSegments.length - index], callSegments[callSegments.length - index])) {
-      return false;
+  if (call.length === route.length) {
+    if (call.every((segment, index) => segment === route[index])) {
+      return 100;
     }
+    return prefixMatch(route, call) ? 80 : 0;
   }
-  return true;
+  if (route.length < call.length) {
+    return prefixMatch(route, call) ? 40 : 0;
+  }
+  const tail = route.slice(route.length - call.length);
+  if (call.every((segment, index) => segmentMatches(tail[index], segment))) {
+    return 30;
+  }
+  return 0;
 }
 
 export function pathsMatch(callPath: string, routePath: string): boolean {
-  const call = segments(callPath);
-  const route = segments(routePath);
-  return prefixMatch(route, call) || suffixMatch(route, call);
+  return matchScore(callPath, routePath) > 0;
 }
 
 export function buildGraph(routes: RouteInfo[], calls: CallInfo[], scannedFiles: number): FlowGraph {
@@ -96,9 +103,19 @@ export function buildGraph(routes: RouteInfo[], calls: CallInfo[], scannedFiles:
       });
     }
 
-    const target =
-      uniqueRoutes.find((route) => route.method === method && pathsMatch(call.path, route.path)) ??
-      uniqueRoutes.find((route) => pathsMatch(call.path, route.path));
+    let target: RouteInfo | undefined;
+    let bestScore = 0;
+    for (const route of uniqueRoutes) {
+      const base = matchScore(call.path, route.path);
+      if (base === 0) {
+        continue;
+      }
+      const score = base + (route.method === method ? 5 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        target = route;
+      }
+    }
 
     if (!target) {
       continue;
