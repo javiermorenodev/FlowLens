@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildGraph, entityMatchesRoute, normalizePath, pathsMatch } from '../src/core/aggregator';
+import { buildGraph, entityMatchesRoute, mergeGraphs, normalizePath, pathsMatch } from '../src/core/aggregator';
 import { FlowScanner } from '../src/core/scanner';
 import { fixturePath } from './helpers';
-import type { CallInfo, EntityInfo, RouteInfo } from '../src/shared/types';
+import type { CallInfo, EntityInfo, FlowGraph, RouteInfo } from '../src/shared/types';
 
 describe('normalizePath', () => {
   it('normaliza barras y descarta query/fragmento', () => {
@@ -83,6 +83,31 @@ describe('buildGraph (capa de datos)', () => {
     expect(dbEdge).toBeDefined();
     expect(dbEdge?.source).toBe('api:GET /api/users');
     expect(graph.edges.some((edge) => edge.target === 'db:Log')).toBe(false);
+  });
+});
+
+describe('mergeGraphs (monorepo)', () => {
+  const a: FlowGraph = {
+    nodes: [{ id: 'api:GET /a', label: 'GET /a', kind: 'api', filePath: 'a.js', line: 1, framework: 'express' }],
+    edges: [],
+    scannedFiles: 3,
+    generatedAt: 1,
+  };
+  const b: FlowGraph = {
+    nodes: [
+      { id: 'api:GET /a', label: 'GET /a', kind: 'api', filePath: 'b.js', line: 9, framework: 'express' },
+      { id: 'api:GET /b', label: 'GET /b', kind: 'api', filePath: 'b.js', line: 2, framework: 'express' },
+    ],
+    edges: [{ id: 'x->y', source: 'api:GET /b', target: 'db:B', label: 'sql' }],
+    scannedFiles: 4,
+    generatedAt: 2,
+  };
+
+  it('une nodos y aristas de varios workspaces sin duplicar ids', () => {
+    const merged = mergeGraphs([a, b]);
+    expect(merged.nodes.map((node) => node.id).sort()).toEqual(['api:GET /a', 'api:GET /b']);
+    expect(merged.edges).toHaveLength(1);
+    expect(merged.scannedFiles).toBe(7);
   });
 });
 

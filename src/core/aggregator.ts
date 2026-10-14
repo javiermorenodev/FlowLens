@@ -95,8 +95,7 @@ export function buildGraph(
   calls: CallInfo[],
   scannedFiles: number,
   entities: EntityInfo[] = [],
-): FlowGraph {
-  const nodes = new Map<string, FlowNode>();
+): FlowGraph {  const nodes = new Map<string, FlowNode>();
   const edges: FlowEdge[] = [];
   const edgeIds = new Set<string>();
   const uniqueRoutes: RouteInfo[] = [];
@@ -194,6 +193,31 @@ export function buildGraph(
   return {
     nodes: [...nodes.values()],
     edges,
+    scannedFiles,
+    generatedAt: Date.now(),
+  };
+}
+
+export function mergeGraphs(graphs: FlowGraph[]): FlowGraph {
+  const nodeMap = new Map<string, FlowNode>();
+  const edgeMap = new Map<string, FlowEdge>();
+  let scannedFiles = 0;
+  for (const graph of graphs) {
+    scannedFiles += graph.scannedFiles;
+    for (const node of graph.nodes) {
+      if (!nodeMap.has(node.id)) {
+        nodeMap.set(node.id, node);
+      }
+    }
+    for (const edge of graph.edges) {
+      if (!edgeMap.has(edge.id)) {
+        edgeMap.set(edge.id, edge);
+      }
+    }
+  }
+  return {
+    nodes: [...nodeMap.values()],
+    edges: [...edgeMap.values()],
     scannedFiles,
     generatedAt: Date.now(),
   };

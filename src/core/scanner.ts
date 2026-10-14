@@ -22,6 +22,7 @@ interface CacheEntry {
   routes: RouteInfo[];
   calls: CallInfo[];
   entities: EntityInfo[];
+  mtimeMs: number;
 }
 
 export class FlowScanner {
@@ -33,6 +34,18 @@ export class FlowScanner {
     for (const file of files) {
       if (!this.cache.has(file)) {
         this.cache.set(file, this.readFile(file));
+      } else {
+        const cached = this.cache.get(file);
+        if (cached) {
+          try {
+            const stat = fs.statSync(file);
+            if (cached.mtimeMs !== stat.mtimeMs) {
+              this.cache.set(file, this.readFile(file));
+            }
+          } catch {
+            this.cache.set(file, this.readFile(file));
+          }
+        }
       }
     }
     for (const key of [...this.cache.keys()]) {
@@ -45,6 +58,13 @@ export class FlowScanner {
 
   updateFile(filePath: string): FlowGraph {
     if (CODE_EXTENSIONS.has(path.extname(filePath))) {
+      const cached = this.cache.get(filePath);
+      try {
+        const stat = fs.statSync(filePath);
+        if (cached && cached.mtimeMs === stat.mtimeMs) {
+          return this.graph();
+        }
+      } catch {}
       this.cache.set(filePath, this.readFile(filePath));
     }
     return this.graph();
@@ -70,13 +90,18 @@ export class FlowScanner {
   private readFile(filePath: string): CacheEntry {
     try {
       const content = fs.readFileSync(filePath, 'utf8');
-      return this.parseFile(filePath, content);
+      const stat = fs.statSync(filePath);
+      const parsed = this.parseFile(filePath, content);
+      return {
+        ...parsed,
+        mtimeMs: stat.mtimeMs,
+      };
     } catch {
-      return { routes: [], calls: [], entities: [] };
+      return { routes: [], calls: [], entities: [], mtimeMs: 0 };
     }
   }
 
-  private parseFile(filePath: string, content: string): CacheEntry {
+  private parseFile(filePath: string, content: string): Omit<CacheEntry, 'mtimeMs'> {
     const routes: RouteInfo[] = [];
     const calls: CallInfo[] = [];
     const entities: EntityInfo[] = [];

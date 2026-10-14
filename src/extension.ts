@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { FlowScanner } from './core/scanner';
+import { mergeGraphs } from './core/aggregator';
 import type { CoreToWebview, OpenTarget, WebviewToCore } from './shared/messages';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -12,13 +13,19 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const publish = (): void => {
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
       post({ type: 'error', message: 'Abre una carpeta de proyecto para visualizar el flujo.' });
       return;
     }
     try {
-      post({ type: 'graph', payload: scanner.scan(folder.uri.fsPath) });
+      if (folders.length === 1) {
+        post({ type: 'graph', payload: scanner.scan(folders[0].uri.fsPath) });
+        return;
+      }
+      const graphs = folders.map((folder) => scanner.scan(folder.uri.fsPath));
+      const merged = mergeGraphs(graphs);
+      post({ type: 'graph', payload: merged });
     } catch (error) {
       post({ type: 'error', message: error instanceof Error ? error.message : String(error) });
     }
