@@ -3,7 +3,7 @@ import * as esbuild from 'esbuild';
 const watch = process.argv.includes('--watch');
 
 const extensionOptions = {
-  entryPoints: ['src/extension.ts', 'src/cli/scan.ts'],
+  entryPoints: ['src/extension.ts', 'src/cli/scan.ts', 'src/core/scanner-worker.ts'],
   outbase: 'src',
   outdir: 'dist',
   bundle: true,

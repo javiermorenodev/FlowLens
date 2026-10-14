@@ -1,10 +1,13 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { FlowScanner } from './core/scanner';
+import { ScannerManager } from './core/manager';
 import { mergeGraphs } from './core/aggregator';
 import type { CoreToWebview, OpenTarget, WebviewToCore } from './shared/messages';
 
+const CODE_FILE = /\.(?:[cm]?[jt]sx?|vue|prisma|sql)$/;
+
 export function activate(context: vscode.ExtensionContext): void {
-  const scanner = new FlowScanner();
+  const scanner = new ScannerManager(path.join(context.extensionPath, 'dist', 'core', 'scanner-worker.js'));
   let panel: vscode.WebviewPanel | undefined;
   let debounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -12,20 +15,15 @@ export function activate(context: vscode.ExtensionContext): void {
     void panel?.webview.postMessage(message);
   };
 
-  const publish = (): void => {
+  const publish = async (): Promise<void> => {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       post({ type: 'error', message: 'Abre una carpeta de proyecto para visualizar el flujo.' });
       return;
     }
     try {
-      if (folders.length === 1) {
-        post({ type: 'graph', payload: scanner.scan(folders[0].uri.fsPath) });
-        return;
-      }
-      const graphs = folders.map((folder) => scanner.scan(folder.uri.fsPath));
-      const merged = mergeGraphs(graphs);
-      post({ type: 'graph', payload: merged });
+      const graphs = await Promise.all(folders.map((folder) => scanner.scan(folder.uri.fsPath)));
+      post({ type: 'graph', payload: graphs.length === 1 ? graphs[0] : mergeGraphs(graphs) });
     } catch (error) {
       post({ type: 'error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -39,13 +37,16 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!panel) {
         return;
       }
-      if (removed) {
-        scanner.removeFile(filePath);
-      } else {
-        scanner.updateFile(filePath);
-      }
-      publish();
+      void (removed ? scanner.removeFile(filePath) : scanner.updateFile(filePath)).then(publish).catch(() => publish());
     }, 400);
+  };
+
+  const prioritizeFocusedFile = (editor: vscode.TextEditor | undefined): void => {
+    const filePath = editor?.document.uri.scheme === 'file' ? editor.document.uri.fsPath : undefined;
+    if (!filePath || !CODE_FILE.test(filePath)) {
+      return;
+    }
+    void scanner.updateFile(filePath).then(publish).catch(() => undefined);
   };
 
   const revealLocation = async (target: OpenTarget, viewColumn: vscode.ViewColumn): Promise<void> => {
@@ -109,7 +110,7 @@ export function activate(context: vscode.ExtensionContext): void {
         switch (message.type) {
           case 'ready':
           case 'refresh':
-            publish();
+            void publish();
             break;
           case 'openFile':
             void revealLocation(message, vscode.ViewColumn.One);
@@ -128,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{js,cjs,mjs,jsx,ts,tsx,vue}');
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{js,cjs,mjs,jsx,ts,tsx,vue,prisma,sql}');
   watcher.onDidChange((uri) => {
     if (uri.scheme === 'file') {
       schedulePublish(uri.fsPath);
@@ -145,6 +146,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
   context.subscriptions.push(watcher);
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) => prioritizeFocusedFile(editor)),
+  );
+
+  context.subscriptions.push({ dispose: () => scanner.dispose() });
 }
 
 function getNonce(): string {
