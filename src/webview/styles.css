@@ -80,6 +80,97 @@ body {
   flex: 1;
 }
 
+.flow-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  background: var(--vscode-editorWidget-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.flow-search {
+  flex: 1 1 180px;
+  min-width: 140px;
+  max-width: 320px;
+  padding: 4px 8px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  font-size: 12px;
+  outline: none;
+}
+
+.flow-search:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.chip-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 2px 9px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.chip.is-on {
+  color: var(--vscode-editor-foreground);
+  border-color: var(--vscode-focusBorder);
+  opacity: 1;
+}
+
+.chip--kind.k-frontend.is-on {
+  background: color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 22%, transparent);
+}
+
+.chip--kind.k-api.is-on {
+  background: color-mix(in srgb, var(--vscode-charts-orange, #d18616) 22%, transparent);
+}
+
+.chip--kind.k-backend.is-on {
+  background: color-mix(in srgb, var(--vscode-charts-green, #89d185) 22%, transparent);
+}
+
+.chip--kind.k-database.is-on {
+  background: color-mix(in srgb, var(--vscode-charts-purple, #b180d7) 22%, transparent);
+}
+
+.flow-count {
+  margin-left: auto;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.react-flow__node.related .flow-node {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.react-flow__node.dimmed {
+  opacity: 0.18;
+}
+
+.react-flow__edge.dimmed {
+  opacity: 0.12;
+}
+
+.react-flow__edge.related .react-flow__edge-path {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 2.4;
+}
+
 .flow-empty {
   position: absolute;
   inset: 0;
