@@ -5,8 +5,8 @@
 ## Entorno de desarrollo
 
 ```bash
-git clone https://github.com/<owner>/flowlens.git
-cd flowlens
+git clone git@github.com:javiermorenodev/FlowLens.git
+cd FlowLens
 npm install
 npm run build
 ```
