@@ -59,6 +59,27 @@ export function activate(context: vscode.ExtensionContext): void {
     panel?.reveal(vscode.ViewColumn.Three, true);
   };
 
+  const exportGraph = async (format: 'png' | 'svg', dataUrl: string): Promise<void> => {
+    const base64 = dataUrl.split(',')[1];
+    if (!base64) {
+      void vscode.window.showErrorMessage('FlowLens: no se pudo generar la imagen.');
+      return;
+    }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const defaultUri = folder
+      ? vscode.Uri.joinPath(folder.uri, `flowlens-graph.${format}`)
+      : vscode.Uri.file(`flowlens-graph.${format}`);
+    const target = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: format === 'png' ? { PNG: ['png'] } : { SVG: ['svg'] },
+    });
+    if (!target) {
+      return;
+    }
+    await vscode.workspace.fs.writeFile(target, Buffer.from(base64, 'base64'));
+    void vscode.window.showInformationMessage(`FlowLens: grafo exportado a ${target.fsPath}`);
+  };
+
   context.subscriptions.push(
     vscode.commands.registerCommand('flowlens.open', () => {
       if (panel) {
@@ -88,6 +109,9 @@ export function activate(context: vscode.ExtensionContext): void {
             break;
           case 'openPair':
             void openPair(message.primary, message.secondary);
+            break;
+          case 'export':
+            void exportGraph(message.format, message.dataUrl);
             break;
         }
       });

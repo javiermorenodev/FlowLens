@@ -75,6 +75,12 @@ body {
   background: var(--vscode-button-hoverBackground);
 }
 
+.refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+}
+
 .flow-canvas {
   position: relative;
   flex: 1;

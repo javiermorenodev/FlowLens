@@ -13,4 +13,5 @@ export type WebviewToCore =
   | { type: 'ready' }
   | { type: 'refresh' }
   | { type: 'openFile'; filePath: string; line: number }
-  | { type: 'openPair'; primary: OpenTarget; secondary: OpenTarget };
+  | { type: 'openPair'; primary: OpenTarget; secondary: OpenTarget }
+  | { type: 'export'; format: 'png' | 'svg'; dataUrl: string };

@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
   MarkerType,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
   type NodeTypes,
+  type Viewport,
 } from 'reactflow';
+import { toPng, toSvg } from 'html-to-image';
 import type { CoreToWebview } from '../shared/messages';
 import type { FlowGraph, FlowNode, NodeKind } from '../shared/types';
 
@@ -28,6 +31,13 @@ const KIND_LABEL: Record<NodeKind, string> = {
 };
 
 const ALL_KINDS = Object.keys(KIND_LABEL) as NodeKind[];
+
+interface PersistedState {
+  viewport?: Viewport;
+  positions?: Record<string, { x: number; y: number }>;
+}
+
+const persisted = (vscode.getState() as PersistedState | undefined) ?? {};
 
 interface FlowNodeData {
   kind: NodeKind;
@@ -56,11 +66,15 @@ function shortPath(filePath: string): string {
   return parts.slice(-2).join('/');
 }
 
-function buildNodes(nodes: FlowNode[], positions: Map<string, { x: number; y: number }>): Node<FlowNodeData>[] {
+function buildNodes(
+  nodes: FlowNode[],
+  positions: Map<string, { x: number; y: number }>,
+  overrides: Record<string, { x: number; y: number }>,
+): Node<FlowNodeData>[] {
   return nodes.map((node) => ({
     id: node.id,
     type: 'flow',
-    position: positions.get(node.id) ?? { x: 0, y: 0 },
+    position: overrides[node.id] ?? positions.get(node.id) ?? { x: 0, y: 0 },
     data: {
       kind: node.kind,
       label: node.label,
@@ -90,6 +104,14 @@ export function App() {
   const [activeKinds, setActiveKinds] = useState<Set<NodeKind>>(new Set(ALL_KINDS));
   const [activeFrameworks, setActiveFrameworks] = useState<Set<string> | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>(persisted.positions ?? {});
+  const stateRef = useRef<PersistedState>({ viewport: persisted.viewport, positions: persisted.positions ?? {} });
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const persist = useCallback(() => {
+    vscode.setState(stateRef.current);
+  }, []);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<CoreToWebview>) => {
@@ -171,7 +193,7 @@ export function App() {
     const visibleIds = new Set(visible.map((node) => node.id));
     const visibleEdges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
 
-    let flowNodes = buildNodes(visible, positions);
+    let flowNodes = buildNodes(visible, positions, overrides);
     let flowEdges = toEdges(visibleEdges);
 
     if (related) {
@@ -186,7 +208,7 @@ export function App() {
     }
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [graph, query, activeKinds, activeFrameworks, related, positions]);
+  }, [graph, query, activeKinds, activeFrameworks, related, positions, overrides]);
 
   const toggleKind = useCallback((kind: NodeKind) => {
     setActiveKinds((prev) => {
@@ -215,6 +237,51 @@ export function App() {
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedId((prev) => (prev === node.id ? null : node.id));
   }, []);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      let moved = false;
+      for (const change of changes) {
+        if (change.type === 'position' && change.position) {
+          stateRef.current.positions = { ...stateRef.current.positions, [change.id]: change.position };
+          moved = true;
+        }
+      }
+      if (moved) {
+        setOverrides({ ...stateRef.current.positions });
+        persist();
+      }
+    },
+    [persist],
+  );
+
+  const onMoveEnd = useCallback(
+    (_event: unknown, viewport: Viewport) => {
+      stateRef.current.viewport = viewport;
+      persist();
+    },
+    [persist],
+  );
+
+  const exportGraph = useCallback(async (format: 'png' | 'svg') => {
+    const element = canvasRef.current?.querySelector('.react-flow') as HTMLElement | null;
+    if (!element || exporting) {
+      return;
+    }
+    setExporting(true);
+    try {
+      const options = {
+        backgroundColor: getComputedStyle(document.body).backgroundColor,
+        filter: (node: HTMLElement) => !node.classList?.contains('react-flow__panel'),
+      };
+      const dataUrl = format === 'png' ? await toPng(element, options) : await toSvg(element, options);
+      vscode.postMessage({ type: 'export', format, dataUrl });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
 
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const data = node.data as FlowNodeData;
@@ -255,6 +322,12 @@ export function App() {
         <button type="button" className="refresh" onClick={() => vscode.postMessage({ type: 'refresh' })}>
           Re-escanear
         </button>
+        <button type="button" className="refresh" disabled={exporting || total === 0} onClick={() => void exportGraph('png')}>
+          PNG
+        </button>
+        <button type="button" className="refresh" disabled={exporting || total === 0} onClick={() => void exportGraph('svg')}>
+          SVG
+        </button>
       </header>
       <div className="flow-filters">
         <input
@@ -294,16 +367,19 @@ export function App() {
           {nodes.length}/{total}
         </span>
       </div>
-      <div className="flow-canvas">
+      <div className="flow-canvas" ref={canvasRef}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
+          onNodesChange={onNodesChange}
           onEdgeClick={onEdgeClick}
+          onMoveEnd={onMoveEnd}
           onPaneClick={() => setSelectedId(null)}
-          fitView
+          defaultViewport={persisted.viewport}
+          fitView={!persisted.viewport}
           minZoom={0.15}
           proOptions={{ hideAttribution: true }}
         >
